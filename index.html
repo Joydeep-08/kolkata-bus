@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kolkata Bus Route Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fbfaf6;
+    --surface:#ffffff;
+    --surface2:#f3f6f1;
+    --line:#e3e8de;
+    --yellow:#1f8a55;
+    --yellow-dim:#bfe3cd;
+    --green:#1f8a55;
+    --green-deep:#146b41;
+    --text:#1b241d;
+    --muted:#6b7669;
+    --muted2:#9aa398;
+    --red:#c0453b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(31,138,85,0.07), transparent),
+      radial-gradient(ellipse 700px 500px at 100% 10%, rgba(31,138,85,0.05), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding:32px 20px 60px;
+  }
+  .wrap{ max-width:760px; margin:0 auto; }
+
+  /* header */
+  .eyebrow{
+    display:flex; align-items:center; gap:10px;
+    color:var(--yellow); font-family:'IBM Plex Mono', monospace;
+    font-size:12px; letter-spacing:0.14em; text-transform:uppercase;
+    margin-bottom:14px;
+  }
+  .eyebrow::before{
+    content:''; width:7px; height:7px; border-radius:50%;
+    background:var(--yellow); box-shadow:0 0 10px var(--yellow);
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:clamp(30px, 5vw, 42px);
+    line-height:1.05;
+    letter-spacing:-0.01em;
+    margin-bottom:10px;
+  }
+  h1 span{ color:var(--yellow); }
+  .sub{
+    color:var(--muted); font-size:15px; max-width:520px; line-height:1.5;
+    margin-bottom:30px;
+  }
+
+  /* form card */
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:22px;
+    position:relative;
+    box-shadow:0 8px 24px rgba(27,36,29,0.05);
+  }
+  .field-row{ display:flex; align-items:center; gap:10px; }
+  .field{ flex:1; position:relative; }
+  .field label{
+    display:block; font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--muted2); margin-bottom:8px;
+  }
+  .field input{
+    width:100%;
+    background:var(--surface2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:13px 14px;
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:15px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  .field input:focus{ border-color:var(--yellow); }
+  .field input::placeholder{ color:var(--muted2); }
+
+  .swap-btn{
+    margin-top:22px;
+    width:38px; height:38px; flex:none;
+    border-radius:50%;
+    background:var(--surface2);
+    border:1px solid var(--line);
+    color:var(--muted);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:transform .2s, border-color .2s, color .2s;
+  }
+  .swap-btn:hover{ border-color:var(--yellow); color:var(--yellow); transform:rotate(180deg); }
+
+  .suggestions{
+    position:absolute; top:calc(100% + 6px); left:0; right:0;
+    background:var(--surface2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    max-height:220px; overflow-y:auto;
+    z-index:20;
+    display:none;
+    box-shadow:0 12px 30px rgba(27,36,29,0.1);
+  }
+  .suggestions.show{ display:block; }
+  .suggestions div{
+    padding:10px 14px; font-size:14px; cursor:pointer; color:var(--text);
+    border-bottom:1px solid var(--line);
+  }
+  .suggestions div:last-child{ border-bottom:none; }
+  .suggestions div:hover, .suggestions div.active{ background:rgba(31,138,85,0.1); color:var(--green-deep); }
+  .suggestions .none{ color:var(--muted2); cursor:default; }
+  .suggestions .none:hover{ background:none; color:var(--muted2); }
+
+  .find-btn{
+    margin-top:18px;
+    width:100%;
+    background:var(--yellow);
+    color:#ffffff;
+    border:none;
+    border-radius:10px;
+    padding:14px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:0.01em;
+    cursor:pointer;
+    transition:filter .15s, transform .1s;
+  }
+  .find-btn:hover{ filter:brightness(1.08); }
+  .find-btn:active{ transform:scale(0.99); }
+  .find-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+
+  /* results */
+  .results{ margin-top:26px; }
+  .status-line{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; letter-spacing:0.06em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:14px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .status-line.ok{ color:var(--green); }
+  .status-line.warn{ color:var(--red); }
+
+  .option{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:18px 18px 16px;
+    margin-bottom:14px;
+    box-shadow:0 6px 18px rgba(27,36,29,0.04);
+  }
+  .option-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .option-tag{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; color:var(--muted2); letter-spacing:0.06em; text-transform:uppercase;
+  }
+  .change-count{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; padding:3px 9px; border-radius:20px;
+    background:var(--surface2); color:var(--muted); border:1px solid var(--line);
+  }
+  .change-count.zero{ color:var(--green); border-color:rgba(62,180,137,0.35); }
+
+  .leg-track{ position:relative; padding-left:26px; }
+  .leg{ position:relative; padding-bottom:20px; }
+  .leg:last-child{ padding-bottom:0; }
+  .leg::before{ /* connecting line */
+    content:''; position:absolute; left:-19px; top:22px; bottom:-2px; width:2px;
+    background:var(--line);
+  }
+  .leg:last-child::before{ display:none; }
+  .dot{
+    position:absolute; left:-26px; top:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--bg); border:2px solid var(--yellow);
+  }
+  .dot.end{ border-color:var(--green); }
+  .stop-name{ font-weight:600; font-size:15px; margin-bottom:6px; }
+  .stop-name.dest{ color:var(--green); }
+  .bus-chip{
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--surface2); border:1px solid var(--line);
+    border-radius:8px; padding:6px 10px; margin-top:2px;
+  }
+  .bus-chip .no{
+    font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:13px;
+    color:#ffffff; background:var(--yellow); padding:2px 7px; border-radius:5px;
+  }
+  .bus-chip .cat{ font-size:11px; color:var(--muted); }
+  .ride-to{ font-size:13px; color:var(--muted); margin-top:6px; }
+  .ride-to b{ color:var(--text); font-weight:600; }
+
+  .empty{
+    text-align:center; padding:40px 20px; color:var(--muted2);
+    font-size:14px;
+  }
+
+  footer{
+    text-align:center; margin-top:36px; font-size:12px; color:var(--muted2);
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  @media (max-width:480px){
+    .field-row{ flex-direction:row; }
+    .swap-btn{ margin-top:22px; }
+  }
+
+  /* new: engine-driven route display */
+  .journey-stats{
+    display:flex; gap:18px; margin-bottom:14px;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted);
+  }
+  .journey-stats b{ color:var(--text); }
+  .journey-emoji{
+    font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.9;
+    margin-bottom:16px;
+  }
+  .journey-emoji .arrow-stop{ color:var(--muted); padding-left:10px; }
+  .journey-emoji .change-line{ color:var(--red); font-weight:600; }
+  .journey-emoji .board-line b{ color:var(--green-deep); }
+  .journey-emoji .arrive-line b{ color:var(--green-deep); }
+  .meta-block{ margin-bottom:14px; }
+  .meta-block .meta-label{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--muted2); margin-bottom:6px;
+  }
+  .meta-block .meta-value{ font-size:13px; color:var(--text); }
+  .meta-block .meta-value.none{ color:var(--muted2); }
+  .leg-detail{ margin-bottom:8px; }
+  .leg-detail summary{
+    cursor:pointer; font-size:13px; color:var(--green-deep); font-weight:600;
+    outline:none;
+  }
+  .leg-detail ol{ margin:8px 0 0 20px; font-size:13px; color:var(--muted); }
+  .suggestion-pick{
+    padding:10px 14px; font-size:14px; cursor:pointer; color:var(--text);
+    border-bottom:1px solid var(--line);
+  }
+  .suggestion-pick:last-child{ border-bottom:none; }
+  .suggestion-pick:hover{ background:rgba(31,138,85,0.1); color:var(--green-deep); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Kolkata Bus Network</div>
+  <h1>Where are you<br>headed, <span>bhai</span>?</h1>
+  <p class="sub">Type your stop and destination — I'll find a direct bus, or the fewest changes needed, from 671 real Kolkata bus routes.</p>
+
+  <div class="card">
+    <div class="field-row">
+      <div class="field" id="fromField">
+        <label>From</label>
+        <input type="text" id="fromInput" placeholder="e.g. Esplanade" autocomplete="off">
+        <div class="suggestions" id="fromSuggestions"></div>
+      </div>
+      <div class="swap-btn" id="swapBtn" title="Swap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5-5 5 5"/><path d="M12 5v14"/><path d="M17 14l-5 5-5-5"/></svg>
+      </div>
+      <div class="field" id="toField">
+        <label>To</label>
+        <input type="text" id="toInput" placeholder="e.g. Howrah" autocomplete="off">
+        <div class="suggestions" id="toSuggestions"></div>
+      </div>
+    </div>
+    <button class="find-btn" id="findBtn" disabled>Find my route</button>
+  </div>
+
+  <div class="results" id="results"></div>
+
+  <footer>Parsed from 671 State / Private / Mini / Blue-Yellow / 200-Series / SD-Series / DN-Series bus routes · route data may not reflect current diversions</footer>
+</div>
+
+<script>
+/* =====================================================================
+ * Kolkata Bus Route Finder — engine-driven version
+ * ---------------------------------------------------------------------
+ * This replaces the old hard-coded ROUTES array + BFS search with the
+ * real routing.js (RoutingEngine) running against graph.json, and
+ * stops.json for autocomplete. routing.js is Node-style CommonJS code
+ * (`require`, `module.exports`) — we load it completely unmodified by
+ * giving it tiny in-browser shims for `require('fs')`/`require('path')`
+ * and reading its `module.exports` afterwards.
+ * ===================================================================== */
+
+const fromInput = document.getElementById('fromInput');
+const toInput = document.getElementById('toInput');
+const findBtn = document.getElementById('findBtn');
+const resultsEl = document.getElementById('results');
+
+let engine = null;      // RoutingEngine instance, once loaded
+let engineReady = false;
+let STOP_NAMES = [];    // for autocomplete, from stops.json
+
+function norm(s){ return String(s).toLowerCase().replace(/[.()]/g,'').replace(/\s+/g,' ').trim(); }
+
+/* ---------------------- Load engine + data files ---------------------- */
+async function initEngine(){
+  const [stopsRes, graphRes, routingSrc] = await Promise.all([
+    fetch('stops.json').then(r => r.json()),
+    fetch('graph.json').then(r => r.text()),
+    fetch('routing.js').then(r => r.text()),
+  ]);
+
+  STOP_NAMES = stopsRes.map(s => s.name);
+
+  // Minimal CommonJS shim so routing.js runs unmodified in the browser.
+  window.require = function(name){
+    if(name === 'fs') return { readFileSync: () => graphRes };
+    if(name === 'path') return { join: (...parts) => parts.join('/') };
+    throw new Error('Unsupported module in browser shim: ' + name);
+  };
+  window.module = { exports: {} };
+  window.exports = window.module.exports;
+
+  const scriptEl = document.createElement('script');
+  scriptEl.textContent = routingSrc;
+  document.body.appendChild(scriptEl);
+
+  const { RoutingEngine } = window.module.exports;
+  engine = new RoutingEngine('graph.json'); // path is irrelevant; fs shim ignores it
+
+  engineReady = true;
+  checkReady();
+}
+
+initEngine().catch(err => {
+  console.error(err);
+  resultsEl.innerHTML = `<div class="status-line warn">Couldn't load route data</div>
+    <div class="empty">Failed to load routing.js / graph.json / stops.json. Please check your network settings and try again.</div>`;
+});
+
+/* ---------------------------- Autocomplete ---------------------------- */
+function setupAutocomplete(inputId, suggId){
+  const input = document.getElementById(inputId);
+  const sugg = document.getElementById(suggId);
+  let activeIdx = -1;
+  let currentMatches = [];
+
+  function render(matches){
+    currentMatches = matches;
+    activeIdx = -1;
+    if(matches.length === 0){
+      sugg.innerHTML = '<div class="none">No matching stops found</div>';
+    } else {
+      sugg.innerHTML = matches.slice(0,8).map((m,i) => `<div data-i="${i}">${m}</div>`).join('');
+    }
+    sugg.classList.add('show');
+  }
+
+  input.addEventListener('input', () => {
+    checkReady();
+    const q = norm(input.value);
+    if(q.length === 0){ sugg.classList.remove('show'); return; }
+    const starts = STOP_NAMES.filter(s => norm(s).startsWith(q));
+    const contains = STOP_NAMES.filter(s => !norm(s).startsWith(q) && norm(s).includes(q));
+    render(starts.concat(contains));
+  });
+
+  input.addEventListener('focus', () => {
+    if(input.value.trim().length > 0 && currentMatches.length) sugg.classList.add('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if(!sugg.contains(e.target) && e.target !== input) sugg.classList.remove('show');
+  });
+
+  sugg.addEventListener('click', (e) => {
+    const div = e.target.closest('div[data-i]');
+    if(!div) return;
+    const val = currentMatches[+div.dataset.i];
+    input.value = val;
+    sugg.classList.remove('show');
+    checkReady();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = sugg.querySelectorAll('div[data-i]');
+    if(!sugg.classList.contains('show') || items.length === 0) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); updateActive(items); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); activeIdx = Math.max(activeIdx-1, 0); updateActive(items); }
+    else if(e.key === 'Enter'){ e.preventDefault(); if(activeIdx>=0){ items[activeIdx].click(); } }
+    else if(e.key === 'Escape'){ sugg.classList.remove('show'); }
+  });
+
+  function updateActive(items){
+    items.forEach(it => it.classList.remove('active'));
+    if(activeIdx>=0){ items[activeIdx].classList.add('active'); items[activeIdx].scrollIntoView({block:'nearest'}); }
+  }
+}
+setupAutocomplete('fromInput','fromSuggestions');
+setupAutocomplete('toInput','toSuggestions');
+
+function checkReady(){
+  findBtn.disabled = !(engineReady && fromInput.value.trim() && toInput.value.trim());
+}
+[fromInput, toInput].forEach(inp => inp.addEventListener('input', checkReady));
+
+document.getElementById('swapBtn').addEventListener('click', () => {
+  const tmp = fromInput.value;
+  fromInput.value = toInput.value;
+  toInput.value = tmp;
+  checkReady();
+});
+
+/* ------------------------- Error / suggestion UI ------------------------ */
+function renderStopError(label, message, inputEl){
+  resultsEl.innerHTML = `<div class="status-line warn">Couldn't resolve the "${label}" stop</div>`;
+
+  const isAmbiguous = message.includes('is ambiguous');
+  if(isAmbiguous){
+    const options = message.split('\n')
+      .filter(l => l.trim().startsWith('- '))
+      .map(l => {
+        const m = l.match(/-\s*(.+?)\s*\(([^)]+)\)\s*$/);
+        return m ? m[1] : null;
+      })
+      .filter(Boolean);
+
+    resultsEl.insertAdjacentHTML('beforeend', `
+      <div class="empty" style="text-align:left; padding:16px 4px;">
+        "${inputEl.value.trim()}" matches multiple stops. Did you mean:
+      </div>
+      <div class="option" style="padding:6px 0;">
+        ${options.map(name => `<div class="suggestion-pick" data-name="${name.replace(/"/g,'&quot;')}">${name}</div>`).join('')}
+      </div>`);
+
+    resultsEl.querySelectorAll('.suggestion-pick').forEach(el => {
+      el.addEventListener('click', () => {
+        inputEl.value = el.dataset.name;
+        resultsEl.innerHTML = '';
+        checkReady();
+      });
+    });
+  } else {
+    resultsEl.insertAdjacentHTML('beforeend', `<div class="empty">${message}</div>`);
+  }
+}
+
+/* ------------------------------ Rendering -------------------------------- */
+function renderResult(result){
+  resultsEl.innerHTML = '';
+
+  if(!result.found){
+    resultsEl.insertAdjacentHTML('beforeend', `
+      <div class="status-line warn">No route found</div>
+      <div class="empty">${result.message}</div>`);
+    return;
+  }
+
+  if(result.legs.length === 0){
+    resultsEl.innerHTML = `<div class="empty">You're already there, bro 😄</div>`;
+    return;
+  }
+
+  const changes = result.busChanges;
+  resultsEl.insertAdjacentHTML('beforeend', `<div class="status-line ok">Best route found</div>`);
+
+  let journeyHtml = '';
+  result.legs.forEach((leg, i) => {
+    const isFirst = i === 0;
+    const isLast = i === result.legs.length - 1;
+    journeyHtml += `<div class="board-line">🚌 Board Bus <b>${leg.bus}</b>${isFirst ? ` at ${leg.boardAt}` : ''}</div>`;
+    const arrowStops = isLast ? leg.stopByStop.slice(1, -1) : leg.stopByStop.slice(1);
+    arrowStops.forEach(s => { journeyHtml += `<div class="arrow-stop">↓ ${s}</div>`; });
+    if(!isLast){
+      journeyHtml += `<div class="change-line">🔄 Change Bus</div>`;
+    } else {
+      journeyHtml += `<div class="arrive-line">🏁 Arrive at <b>${leg.alightAt}</b></div>`;
+    }
+  });
+
+  const busChipsHtml = result.busesToBoard.map(b =>
+    `<div class="bus-chip" style="margin:0 6px 6px 0"><span class="no">${b}</span></div>`
+  ).join('');
+
+  const legsDetailHtml = result.legs.map((leg, i) => `
+    <details class="leg-detail">
+      <summary>Leg ${i+1}: Bus ${leg.bus} (${leg.boardAt} → ${leg.alightAt}) — ${leg.stopsTravelled} stop${leg.stopsTravelled === 1 ? '' : 's'}</summary>
+      <ol>${leg.stopByStop.map(s => `<li>${s}</li>`).join('')}</ol>
+    </details>`).join('');
+
+  const card = document.createElement('div');
+  card.className = 'option';
+  card.innerHTML = `
+    <div class="option-head">
+      <span class="option-tag">Best Route: ${result.origin} → ${result.destination}</span>
+      <span class="change-count ${changes===0?'zero':''}">${changes===0 ? 'Direct · no change' : changes+' bus change'+(changes>1?'s':'')}</span>
+    </div>
+    <div class="journey-stats">
+      <span>Bus Changes: <b>${changes}</b></span>
+      <span>Total Stops: <b>${result.totalStopsTravelled}</b></span>
+    </div>
+    <div class="journey-emoji">${journeyHtml}</div>
+    <div class="meta-block">
+      <div class="meta-label">Buses to board</div>
+      <div style="display:flex; flex-wrap:wrap;">${busChipsHtml}</div>
+    </div>
+    <div class="meta-block">
+      <div class="meta-label">Interchange stops</div>
+      <div class="meta-value ${result.interchangeStops.length ? '' : 'none'}">${result.interchangeStops.length ? result.interchangeStops.join(', ') : 'None — direct bus'}</div>
+    </div>
+    ${legsDetailHtml}
+  `;
+  resultsEl.appendChild(card);
+}
+
+/* --------------------------------- Search --------------------------------- */
+findBtn.addEventListener('click', () => {
+  if(!engineReady) return;
+  const fromVal = fromInput.value.trim();
+  const toVal = toInput.value.trim();
+  if(!fromVal || !toVal) return;
+
+  try {
+    engine.resolveStop(fromVal);
+  } catch(err) {
+    renderStopError('From', err.message, fromInput);
+    return;
+  }
+  try {
+    engine.resolveStop(toVal);
+  } catch(err) {
+    renderStopError('To', err.message, toInput);
+    return;
+  }
+
+  const result = engine.route(fromVal, toVal);
+  renderResult(result);
+});
+</script>
+</body>
+</html>

@@ -156,53 +156,97 @@
   .option{
     background:var(--surface);
     border:1px solid var(--line);
-    border-radius:14px;
-    padding:18px 18px 16px;
-    margin-bottom:14px;
-    box-shadow:0 6px 18px rgba(27,36,29,0.04);
+    border-radius:18px;
+    padding:26px 26px 24px;
+    margin-bottom:18px;
+    box-shadow:0 1px 2px rgba(27,36,29,0.04), 0 12px 28px rgba(27,36,29,0.05);
+    position:relative;
+    overflow:hidden;
+    transition:box-shadow .2s ease, transform .2s ease;
+    animation:cardIn .45s ease both;
   }
+  .option:hover{
+    box-shadow:0 2px 4px rgba(27,36,29,0.05), 0 18px 36px rgba(27,36,29,0.08);
+    transform:translateY(-2px);
+  }
+  .option::before{
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background:var(--line); opacity:0;
+  }
+  .option.best::before{
+    background:linear-gradient(90deg, var(--yellow), var(--green-deep));
+    opacity:1;
+  }
+  @keyframes cardIn{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .option:nth-child(2){ animation-delay:.05s; }
+  .option:nth-child(3){ animation-delay:.1s; }
+  .option:nth-child(4){ animation-delay:.15s; }
+  .option:nth-child(5){ animation-delay:.2s; }
+
   .option-head{
     display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:14px;
+    margin-bottom:24px;
+    gap:10px;
+    padding-bottom:16px;
+    border-bottom:1px solid var(--line);
   }
   .option-tag{
     font-family:'IBM Plex Mono', monospace;
-    font-size:11px; color:var(--muted2); letter-spacing:0.06em; text-transform:uppercase;
+    font-size:11px; color:var(--muted2); letter-spacing:0.1em; text-transform:uppercase;
+    display:flex; align-items:center; gap:9px;
+  }
+  .best-pill{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:10.5px; background:linear-gradient(135deg, var(--yellow), var(--green-deep)); color:#fff;
+    padding:3px 9px; border-radius:20px; letter-spacing:0.08em;
+    box-shadow:0 2px 6px rgba(31,138,85,0.35);
   }
   .change-count{
     font-family:'IBM Plex Mono', monospace;
-    font-size:11px; padding:3px 9px; border-radius:20px;
+    font-size:11.5px; padding:5px 12px; border-radius:20px;
     background:var(--surface2); color:var(--muted); border:1px solid var(--line);
+    white-space:nowrap;
   }
-  .change-count.zero{ color:var(--green); border-color:rgba(62,180,137,0.35); }
+  .change-count.zero{ color:var(--green-deep); background:rgba(31,138,85,0.08); border-color:rgba(31,138,85,0.3); font-weight:600; }
 
-  .leg-track{ position:relative; padding-left:26px; }
-  .leg{ position:relative; padding-bottom:20px; }
-  .leg:last-child{ padding-bottom:0; }
-  .leg::before{ /* connecting line */
-    content:''; position:absolute; left:-19px; top:22px; bottom:-2px; width:2px;
-    background:var(--line);
+  /* premium vertical route timeline: stop name -> bus chip -> "ride to" -> next stop */
+  .route-track{ position:relative; padding-left:30px; }
+  .stop-node{ position:relative; padding-bottom:28px; }
+  .stop-node:last-child{ padding-bottom:0; }
+  .stop-node::before{ /* connecting line down to the next node */
+    content:''; position:absolute; left:-20px; top:26px; bottom:-2px; width:2px;
+    background:linear-gradient(to bottom, var(--yellow), var(--yellow-dim));
   }
-  .leg:last-child::before{ display:none; }
-  .dot{
-    position:absolute; left:-26px; top:2px;
-    width:14px; height:14px; border-radius:50%;
-    background:var(--bg); border:2px solid var(--yellow);
+  .stop-node:last-child::before{ display:none; }
+  .node-dot{
+    position:absolute; left:-28px; top:3px;
+    width:16px; height:16px; border-radius:50%;
+    background:var(--surface); border:3px solid var(--yellow);
+    z-index:2;
+    box-shadow:0 0 0 5px var(--surface), 0 1px 3px rgba(27,36,29,0.12);
   }
-  .dot.end{ border-color:var(--green); }
-  .stop-name{ font-weight:600; font-size:15px; margin-bottom:6px; }
-  .stop-name.dest{ color:var(--green); }
-  .bus-chip{
-    display:inline-flex; align-items:center; gap:7px;
-    background:var(--surface2); border:1px solid var(--line);
-    border-radius:8px; padding:6px 10px; margin-top:2px;
+  .stop-node.arrived .node-dot{
+    background:var(--green-deep); border-color:var(--green-deep);
   }
-  .bus-chip .no{
+  .stop-title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:17.5px; letter-spacing:-0.01em;
+    color:var(--text); margin-bottom:11px;
+  }
+  .stop-node.arrived .stop-title{ color:var(--green-deep); margin-bottom:0; }
+  .ride-chip{ display:flex; align-items:center; gap:9px; margin-bottom:8px; }
+  .bus-pill{
     font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:13px;
-    color:#ffffff; background:var(--yellow); padding:2px 7px; border-radius:5px;
+    color:#ffffff; background:linear-gradient(135deg, var(--yellow), var(--green-deep));
+    padding:4px 11px; border-radius:7px;
+    box-shadow:0 2px 5px rgba(31,138,85,0.25);
   }
-  .bus-chip .cat{ font-size:11px; color:var(--muted); }
-  .ride-to{ font-size:13px; color:var(--muted); margin-top:6px; }
+  .bus-cat{ font-size:12.5px; color:var(--muted2); }
+  .ride-to{ font-size:14px; color:var(--muted); }
   .ride-to b{ color:var(--text); font-weight:600; }
 
   .empty{
@@ -220,39 +264,140 @@
     .swap-btn{ margin-top:22px; }
   }
 
-  /* new: engine-driven route display */
-  .journey-stats{
-    display:flex; gap:18px; margin-bottom:14px;
-    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted);
-  }
-  .journey-stats b{ color:var(--text); }
-  .journey-emoji{
-    font-family:'IBM Plex Mono', monospace; font-size:13px; line-height:1.9;
-    margin-bottom:16px;
-  }
-  .journey-emoji .arrow-stop{ color:var(--muted); padding-left:10px; }
-  .journey-emoji .change-line{ color:var(--red); font-weight:600; }
-  .journey-emoji .board-line b{ color:var(--green-deep); }
-  .journey-emoji .arrive-line b{ color:var(--green-deep); }
-  .meta-block{ margin-bottom:14px; }
-  .meta-block .meta-label{
-    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em;
-    text-transform:uppercase; color:var(--muted2); margin-bottom:6px;
-  }
-  .meta-block .meta-value{ font-size:13px; color:var(--text); }
-  .meta-block .meta-value.none{ color:var(--muted2); }
-  .leg-detail{ margin-bottom:8px; }
-  .leg-detail summary{
-    cursor:pointer; font-size:13px; color:var(--green-deep); font-weight:600;
-    outline:none;
-  }
-  .leg-detail ol{ margin:8px 0 0 20px; font-size:13px; color:var(--muted); }
   .suggestion-pick{
     padding:10px 14px; font-size:14px; cursor:pointer; color:var(--text);
     border-bottom:1px solid var(--line);
   }
   .suggestion-pick:last-child{ border-bottom:none; }
   .suggestion-pick:hover{ background:rgba(31,138,85,0.1); color:var(--green-deep); }
+
+  /* section divider between "find a route" and "look up a bus" */
+  .section-divider{
+    display:flex; align-items:center; gap:14px;
+    margin:48px 0 20px;
+    color:var(--muted2);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:0.14em; text-transform:uppercase;
+  }
+  .section-divider::before, .section-divider::after{
+    content:''; flex:1; height:1px; background:var(--line);
+  }
+
+  /* bus lookup card — light, green, same family as the main finder card */
+  .board{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:22px;
+    position:relative;
+    box-shadow:0 8px 24px rgba(27,36,29,0.05);
+    overflow:hidden;
+  }
+  .board::before{ /* soft route-line flourish, top-right */
+    content:'';
+    position:absolute; top:-40px; right:-40px;
+    width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle, rgba(31,138,85,0.09), transparent 70%);
+    pointer-events:none;
+  }
+  .board-label{
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:16px;
+  }
+  .board-icon{
+    width:32px; height:32px; flex:none; border-radius:9px;
+    background:rgba(31,138,85,0.12);
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px;
+  }
+  .board-label-text .t1{
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:15px; color:var(--text);
+  }
+  .board-label-text .t2{ font-size:12.5px; color:var(--muted); margin-top:1px; }
+
+  .board-row{ display:flex; gap:10px; align-items:center; position:relative; z-index:1; }
+  .board-input-wrap{ flex:1; position:relative; }
+  .board-input-wrap input{
+    width:100%;
+    background:var(--surface2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:14px 16px;
+    color:var(--text);
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:18px;
+    letter-spacing:0.02em;
+    outline:none;
+    transition:border-color .15s;
+  }
+  .board-input-wrap input::placeholder{ color:var(--muted2); font-weight:600; }
+  .board-input-wrap input:focus{ border-color:var(--yellow); }
+
+  .board-go-btn{
+    flex:none;
+    background:var(--yellow);
+    color:#ffffff;
+    border:none; border-radius:10px;
+    padding:0 22px; height:49px;
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700; font-size:14.5px; letter-spacing:0.01em;
+    cursor:pointer;
+    transition:filter .15s, transform .1s;
+    white-space:nowrap;
+  }
+  .board-go-btn:hover{ filter:brightness(1.08); }
+  .board-go-btn:active{ transform:scale(0.98); }
+  .board-go-btn:disabled{ opacity:0.45; cursor:not-allowed; }
+
+  /* result card */
+  .bus-route-card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:0 0 24px;
+    margin-bottom:18px;
+    box-shadow:0 1px 2px rgba(27,36,29,0.04), 0 12px 28px rgba(27,36,29,0.05);
+    animation:cardIn .45s ease both;
+    overflow:hidden;
+  }
+  .bus-route-head{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:20px 24px;
+    background:var(--surface2);
+    border-bottom:1px solid var(--line);
+  }
+  .bus-route-title{ display:flex; align-items:center; gap:10px; }
+  .board-pill{
+    font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:16px;
+    color:#fff; background:var(--yellow);
+    padding:6px 14px; border-radius:8px; letter-spacing:0.02em;
+  }
+  .board-cat{ font-size:12.5px; color:var(--muted); }
+  .bus-route-stopcount{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--muted);
+    background:var(--surface); border:1px solid var(--line);
+    padding:5px 12px; border-radius:20px; white-space:nowrap;
+  }
+  .bus-route-body{ padding:22px 26px 0; }
+  .bus-stop-node{ position:relative; padding-left:30px; padding-bottom:20px; }
+  .bus-stop-node:last-child{ padding-bottom:0; }
+  .bus-stop-node::before{
+    content:''; position:absolute; left:6px; top:20px; bottom:-2px; width:2px;
+    background:linear-gradient(to bottom, var(--yellow), var(--yellow-dim));
+  }
+  .bus-stop-node:last-child::before{ display:none; }
+  .bus-stop-node .node-dot{
+    position:absolute; left:0; top:2px;
+    width:14px; height:14px; border-radius:50%;
+    background:var(--surface); border:3px solid var(--yellow);
+    box-shadow:0 0 0 4px var(--surface);
+  }
+  .bus-stop-node.first .node-dot, .bus-stop-node.last .node-dot{
+    background:var(--green-deep); border-color:var(--green-deep);
+  }
+  .bus-stop-name{ font-size:15px; font-weight:600; color:var(--text); }
+  .bus-stop-node.first .bus-stop-name, .bus-stop-node.last .bus-stop-name{ color:var(--green-deep); }
 </style>
 </head>
 <body>
@@ -282,6 +427,27 @@
 
   <div class="results" id="results"></div>
 
+  <div class="section-divider">Or look up a bus</div>
+
+  <div class="board">
+    <div class="board-label">
+      <div class="board-icon">🚌</div>
+      <div class="board-label-text">
+        <div class="t1">Know the bus number?</div>
+        <div class="t2">Look up its full stop-by-stop route</div>
+      </div>
+    </div>
+    <div class="board-row">
+      <div class="board-input-wrap" id="busField">
+        <input type="text" id="busInput" placeholder="e.g. 35C" autocomplete="off">
+        <div class="suggestions" id="busSuggestions"></div>
+      </div>
+      <button class="board-go-btn" id="busShowBtn" disabled>Track route</button>
+    </div>
+  </div>
+
+  <div class="results" id="busResults"></div>
+
   <footer>Parsed from 671 State / Private / Mini / Blue-Yellow / 200-Series / SD-Series / DN-Series bus routes · route data may not reflect current diversions</footer>
 </div>
 
@@ -289,11 +455,11 @@
 /* =====================================================================
  * Kolkata Bus Route Finder — engine-driven version
  * ---------------------------------------------------------------------
- * This replaces the old hard-coded ROUTES array + BFS search with the
- * real routing.js (RoutingEngine) running against graph.json, and
- * stops.json for autocomplete. routing.js is Node-style CommonJS code
- * (`require`, `module.exports`) — we load it completely unmodified by
- * giving it tiny in-browser shims for `require('fs')`/`require('path')`
+ * Loads the real routing.js (RoutingEngine) running against graph.json
+ * (origin -> destination routing) and routes_nodes.json (bus lookup),
+ * plus stops.json for autocomplete. routing.js is Node-style CommonJS
+ * code (`require`, `module.exports`) — we load it completely unmodified
+ * by giving it tiny in-browser shims for `require('fs')`/`require('path')`
  * and reading its `module.exports` afterwards.
  * ===================================================================== */
 
@@ -305,22 +471,31 @@ const resultsEl = document.getElementById('results');
 let engine = null;      // RoutingEngine instance, once loaded
 let engineReady = false;
 let STOP_NAMES = [];    // for autocomplete, from stops.json
+let BUS_NUMBERS = [];   // for bus-lookup autocomplete, from routes_nodes.json (via engine)
+
+const MAX_OPTIONS = 4;  // how many alternative routes to show
 
 function norm(s){ return String(s).toLowerCase().replace(/[.()]/g,'').replace(/\s+/g,' ').trim(); }
 
 /* ---------------------- Load engine + data files ---------------------- */
 async function initEngine(){
-  const [stopsRes, graphRes, routingSrc] = await Promise.all([
+  const [stopsRes, graphRes, routesNodesRes, routingSrc] = await Promise.all([
     fetch('stops.json').then(r => r.json()),
     fetch('graph.json').then(r => r.text()),
+    fetch('routes_nodes.json').then(r => r.text()),
     fetch('routing.js').then(r => r.text()),
   ]);
 
   STOP_NAMES = stopsRes.map(s => s.name);
 
   // Minimal CommonJS shim so routing.js runs unmodified in the browser.
+  // graph.json powers origin -> destination routing; routes_nodes.json
+  // powers bus lookup (getBusRoute) -- routed to the right in-memory
+  // string purely based on which path routing.js asks fs to read.
   window.require = function(name){
-    if(name === 'fs') return { readFileSync: () => graphRes };
+    if(name === 'fs') return {
+      readFileSync: (p) => (p === 'routes_nodes.json' ? routesNodesRes : graphRes),
+    };
     if(name === 'path') return { join: (...parts) => parts.join('/') };
     throw new Error('Unsupported module in browser shim: ' + name);
   };
@@ -332,10 +507,12 @@ async function initEngine(){
   document.body.appendChild(scriptEl);
 
   const { RoutingEngine } = window.module.exports;
-  engine = new RoutingEngine('graph.json'); // path is irrelevant; fs shim ignores it
+  engine = new RoutingEngine('graph.json', 'routes_nodes.json'); // paths select which fetched text the fs shim returns
+  BUS_NUMBERS = engine.listBuses();
 
   engineReady = true;
   checkReady();
+  checkBusReady();
 }
 
 initEngine().catch(err => {
@@ -410,6 +587,74 @@ function checkReady(){
 }
 [fromInput, toInput].forEach(inp => inp.addEventListener('input', checkReady));
 
+/* ---------------------- Bus-number lookup autocomplete ---------------------- */
+const busInput = document.getElementById('busInput');
+const busShowBtn = document.getElementById('busShowBtn');
+const busResultsEl = document.getElementById('busResults');
+
+function setupBusAutocomplete(){
+  const input = busInput;
+  const sugg = document.getElementById('busSuggestions');
+  let activeIdx = -1;
+  let currentMatches = [];
+
+  function render(matches){
+    currentMatches = matches;
+    activeIdx = -1;
+    if(matches.length === 0){
+      sugg.innerHTML = '<div class="none">No matching buses found</div>';
+    } else {
+      sugg.innerHTML = matches.slice(0,8).map((m,i) => `<div data-i="${i}">${m}</div>`).join('');
+    }
+    sugg.classList.add('show');
+  }
+
+  input.addEventListener('input', () => {
+    checkBusReady();
+    const q = input.value.trim().toLowerCase();
+    if(q.length === 0){ sugg.classList.remove('show'); return; }
+    const starts = BUS_NUMBERS.filter(b => b.toLowerCase().startsWith(q));
+    const contains = BUS_NUMBERS.filter(b => !b.toLowerCase().startsWith(q) && b.toLowerCase().includes(q));
+    render(starts.concat(contains));
+  });
+
+  input.addEventListener('focus', () => {
+    if(input.value.trim().length > 0 && currentMatches.length) sugg.classList.add('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if(!sugg.contains(e.target) && e.target !== input) sugg.classList.remove('show');
+  });
+
+  sugg.addEventListener('click', (e) => {
+    const div = e.target.closest('div[data-i]');
+    if(!div) return;
+    input.value = currentMatches[+div.dataset.i];
+    sugg.classList.remove('show');
+    checkBusReady();
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = sugg.querySelectorAll('div[data-i]');
+    if(!sugg.classList.contains('show') || items.length === 0) return;
+    if(e.key === 'ArrowDown'){ e.preventDefault(); activeIdx = Math.min(activeIdx+1, items.length-1); updateActive(items); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); activeIdx = Math.max(activeIdx-1, 0); updateActive(items); }
+    else if(e.key === 'Enter'){ e.preventDefault(); if(activeIdx>=0){ items[activeIdx].click(); } else { busShowBtn.click(); } }
+    else if(e.key === 'Escape'){ sugg.classList.remove('show'); }
+  });
+
+  function updateActive(items){
+    items.forEach(it => it.classList.remove('active'));
+    if(activeIdx>=0){ items[activeIdx].classList.add('active'); items[activeIdx].scrollIntoView({block:'nearest'}); }
+  }
+}
+setupBusAutocomplete();
+
+function checkBusReady(){
+  busShowBtn.disabled = !(engineReady && busInput.value.trim());
+}
+busInput.addEventListener('input', checkBusReady);
+
 document.getElementById('swapBtn').addEventListener('click', () => {
   const tmp = fromInput.value;
   fromInput.value = toInput.value;
@@ -452,71 +697,70 @@ function renderStopError(label, message, inputEl){
 }
 
 /* ------------------------------ Rendering -------------------------------- */
-function renderResult(result){
+// Builds a stop-name-first vertical timeline:
+// Origin -> [bus chip + "ride to" next] -> interchange stop -> ... -> destination (arrived)
+function renderOptionCard(option, index){
+  const isBest = index === 0;
+  const changes = option.busChanges;
+
+  // node names in order: origin, each interchange stop, destination
+  const nodeNames = [option.origin, ...option.interchangeStops, option.destination];
+
+  let trackHtml = '';
+  option.legs.forEach((leg, i) => {
+    const nodeName = nodeNames[i];
+    const nextName = nodeNames[i + 1];
+    trackHtml += `
+      <div class="stop-node">
+        <div class="node-dot"></div>
+        <div class="stop-title">${nodeName}</div>
+        <div class="ride-chip">
+          <span class="bus-pill">${leg.bus}</span>
+          <span class="bus-cat">${leg.category || ''}</span>
+        </div>
+        <div class="ride-to">ride to <b>${nextName}</b></div>
+      </div>`;
+  });
+
+  const destName = nodeNames[nodeNames.length - 1];
+  trackHtml += `
+    <div class="stop-node arrived">
+      <div class="node-dot"></div>
+      <div class="stop-title">${destName} — you've arrived</div>
+    </div>`;
+
+  return `
+    <div class="option ${isBest ? 'best' : ''}">
+      <div class="option-head">
+        <span class="option-tag">${isBest ? '<span class="best-pill">BEST</span>' : ''} Option ${index + 1}</span>
+        <span class="change-count ${changes===0?'zero':''}">${changes===0 ? 'Direct · no change' : changes+' bus change'+(changes>1?'s':'')}</span>
+      </div>
+      <div class="route-track">${trackHtml}</div>
+    </div>`;
+}
+
+function renderResults(res){
   resultsEl.innerHTML = '';
 
-  if(!result.found){
+  if(!res.found){
     resultsEl.insertAdjacentHTML('beforeend', `
       <div class="status-line warn">No route found</div>
-      <div class="empty">${result.message}</div>`);
+      <div class="empty">${res.message}</div>`);
     return;
   }
 
-  if(result.legs.length === 0){
+  const options = res.options;
+
+  if(options.length === 1 && options[0].legs.length === 0){
     resultsEl.innerHTML = `<div class="empty">You're already there, bro 😄</div>`;
     return;
   }
 
-  const changes = result.busChanges;
-  resultsEl.insertAdjacentHTML('beforeend', `<div class="status-line ok">Best route found</div>`);
+  resultsEl.insertAdjacentHTML('beforeend',
+    `<div class="status-line ok">${options.length > 1 ? options.length + ' routes found' : 'Route found'}</div>`);
 
-  let journeyHtml = '';
-  result.legs.forEach((leg, i) => {
-    const isFirst = i === 0;
-    const isLast = i === result.legs.length - 1;
-    journeyHtml += `<div class="board-line">🚌 Board Bus <b>${leg.bus}</b>${isFirst ? ` at ${leg.boardAt}` : ''}</div>`;
-    const arrowStops = isLast ? leg.stopByStop.slice(1, -1) : leg.stopByStop.slice(1);
-    arrowStops.forEach(s => { journeyHtml += `<div class="arrow-stop">↓ ${s}</div>`; });
-    if(!isLast){
-      journeyHtml += `<div class="change-line">🔄 Change Bus</div>`;
-    } else {
-      journeyHtml += `<div class="arrive-line">🏁 Arrive at <b>${leg.alightAt}</b></div>`;
-    }
-  });
-
-  const busChipsHtml = result.busesToBoard.map(b =>
-    `<div class="bus-chip" style="margin:0 6px 6px 0"><span class="no">${b}</span></div>`
-  ).join('');
-
-  const legsDetailHtml = result.legs.map((leg, i) => `
-    <details class="leg-detail">
-      <summary>Leg ${i+1}: Bus ${leg.bus} (${leg.boardAt} → ${leg.alightAt}) — ${leg.stopsTravelled} stop${leg.stopsTravelled === 1 ? '' : 's'}</summary>
-      <ol>${leg.stopByStop.map(s => `<li>${s}</li>`).join('')}</ol>
-    </details>`).join('');
-
-  const card = document.createElement('div');
-  card.className = 'option';
-  card.innerHTML = `
-    <div class="option-head">
-      <span class="option-tag">Best Route: ${result.origin} → ${result.destination}</span>
-      <span class="change-count ${changes===0?'zero':''}">${changes===0 ? 'Direct · no change' : changes+' bus change'+(changes>1?'s':'')}</span>
-    </div>
-    <div class="journey-stats">
-      <span>Bus Changes: <b>${changes}</b></span>
-      <span>Total Stops: <b>${result.totalStopsTravelled}</b></span>
-    </div>
-    <div class="journey-emoji">${journeyHtml}</div>
-    <div class="meta-block">
-      <div class="meta-label">Buses to board</div>
-      <div style="display:flex; flex-wrap:wrap;">${busChipsHtml}</div>
-    </div>
-    <div class="meta-block">
-      <div class="meta-label">Interchange stops</div>
-      <div class="meta-value ${result.interchangeStops.length ? '' : 'none'}">${result.interchangeStops.length ? result.interchangeStops.join(', ') : 'None — direct bus'}</div>
-    </div>
-    ${legsDetailHtml}
-  `;
-  resultsEl.appendChild(card);
+  const cardsHtml = options.map((opt, i) => renderOptionCard(opt, i)).join('');
+  resultsEl.insertAdjacentHTML('beforeend', cardsHtml);
 }
 
 /* --------------------------------- Search --------------------------------- */
@@ -539,8 +783,82 @@ findBtn.addEventListener('click', () => {
     return;
   }
 
-  const result = engine.route(fromVal, toVal);
-  renderResult(result);
+  const res = engine.routeMultiple(fromVal, toVal, MAX_OPTIONS);
+  renderResults(res);
+});
+
+/* ------------------------------- Bus lookup ------------------------------- */
+function renderBusError(message){
+  busResultsEl.innerHTML = `<div class="status-line warn">Couldn't find that bus</div>`;
+
+  const isAmbiguous = message.includes('is ambiguous');
+  if(isAmbiguous){
+    const options = message.split('\n')
+      .filter(l => l.trim().startsWith('- '))
+      .map(l => l.replace(/^\s*-\s*/, '').trim());
+
+    busResultsEl.insertAdjacentHTML('beforeend', `
+      <div class="empty" style="text-align:left; padding:16px 4px;">
+        "${busInput.value.trim()}" matches multiple buses. Did you mean:
+      </div>
+      <div class="option" style="padding:6px 0;">
+        ${options.map(b => `<div class="suggestion-pick" data-bus="${b.replace(/"/g,'&quot;')}">${b}</div>`).join('')}
+      </div>`);
+
+    busResultsEl.querySelectorAll('.suggestion-pick').forEach(el => {
+      el.addEventListener('click', () => {
+        busInput.value = el.dataset.bus;
+        busResultsEl.innerHTML = '';
+        checkBusReady();
+      });
+    });
+  } else {
+    busResultsEl.insertAdjacentHTML('beforeend', `<div class="empty">${message}</div>`);
+  }
+}
+
+function renderBusRoute(route){
+  busResultsEl.innerHTML = '';
+  busResultsEl.insertAdjacentHTML('beforeend', `<div class="status-line ok">Route found</div>`);
+
+  // route.nodes is the original ordered stop list exactly as stored in
+  // routes_nodes.json -- displayed as a single unbroken line, no
+  // segmentation or reconstruction of any kind.
+  const nodesHtml = route.nodes.map((name, i) => {
+    const cls = i === 0 ? 'first' : (i === route.nodes.length - 1 ? 'last' : '');
+    return `
+      <div class="bus-stop-node ${cls}">
+        <div class="node-dot"></div>
+        <div class="bus-stop-name">${name}</div>
+      </div>`;
+  }).join('');
+
+  busResultsEl.insertAdjacentHTML('beforeend', `
+    <div class="bus-route-card">
+      <div class="bus-route-head">
+        <div class="bus-route-title">
+          <span class="board-pill">${route.bus}</span>
+          <span class="board-cat">${route.category || ''}</span>
+        </div>
+        <span class="bus-route-stopcount">${route.stopCount} stops</span>
+      </div>
+      <div class="bus-route-body">
+        ${nodesHtml}
+      </div>
+    </div>`);
+}
+
+busShowBtn.addEventListener('click', () => {
+  if(!engineReady) return;
+  const busVal = busInput.value.trim();
+  if(!busVal) return;
+
+  try {
+    const route = engine.getBusRoute(busVal);
+    renderBusRoute(route);
+  } catch(err) {
+    renderBusError(err.message);
+  }
 });
 </script>
 </body>

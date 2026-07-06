@@ -101,9 +101,10 @@ class MinHeap {
 // ---------------------------------------------------------------------
 class RoutingEngine {
   /**
-   * @param {string} graphPath - path to graph.json
+   * @param {string} graphPath - path to graph.json (used for origin -> destination routing only)
+   * @param {string} [routesNodesPath] - path to routes_nodes.json (used for bus lookup only)
    */
-  constructor(graphPath) {
+  constructor(graphPath, routesNodesPath) {
     const raw = JSON.parse(fs.readFileSync(graphPath, 'utf8'));
     this.meta = raw.meta;
     this.nodes = raw.nodes;         // id -> { id, name }
@@ -116,6 +117,14 @@ class RoutingEngine {
       const norm = this._normalize(this.nodes[id].name);
       if (!this.nameIndex.has(norm)) this.nameIndex.set(norm, id);
     }
+
+    // routes_nodes.json: the ordered, ground-truth stop list for every bus,
+    // as recorded in the source data. Used exclusively for bus lookup
+    // (getBusRoute) -- never for origin -> destination routing, and never
+    // traversed / reconstructed in any way.
+    this.routesNodes = routesNodesPath
+      ? JSON.parse(fs.readFileSync(routesNodesPath, 'utf8'))
+      : [];
   }
 
   _normalize(s) {
@@ -269,6 +278,86 @@ class RoutingEngine {
   }
 
   /**
+   * Look up the display category (e.g. "Private Bus", "DN Series") for a
+   * given bus number, using any edge leaving `fromStop` on that bus as a
+   * representative sample (category is a property of the bus/route, not
+   * of a specific edge).
+   */
+  _categoryFor(fromStop, bus) {
+    const edges = this.adjacency[fromStop] || [];
+    const match = edges.find(e => e.bus === bus);
+    return match ? match.category : null;
+  }
+
+  /**
+   * All distinct bus numbers present in routes_nodes.json, sorted naturally
+   * (so "2" < "12" < "35C" rather than lexicographically).
+   */
+  listBuses() {
+    if (this._busListCache) return this._busListCache;
+    const set = new Set();
+    for (const route of this.routesNodes) set.add(route.busNo);
+    this._busListCache = Array.from(set).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    );
+    return this._busListCache;
+  }
+
+  /**
+   * Resolve a user supplied bus number (case-insensitive, possibly partial)
+   * into a canonical bus number as it appears in routes_nodes.json.
+   */
+  resolveBus(input) {
+    const buses = this.listBuses();
+    const q = String(input).trim();
+    const qLower = q.toLowerCase();
+
+    const exact = buses.find(b => b.toLowerCase() === qLower);
+    if (exact) return exact;
+
+    const candidates = buses.filter(b => b.toLowerCase().includes(qLower));
+    if (candidates.length === 1) return candidates[0];
+
+    if (candidates.length === 0) {
+      throw new Error(`No bus found matching "${input}".`);
+    }
+
+    const list = candidates.slice(0, 10).map(b => `  - ${b}`).join('\n');
+    throw new Error(
+      `"${input}" is ambiguous, matched ${candidates.length} buses. Did you mean:\n${list}` +
+      (candidates.length > 10 ? '\n  ...' : '')
+    );
+  }
+
+  /**
+   * Look up a bus's stop-by-stop route.
+   *
+   * This is a pure lookup against routes_nodes.json -- the ordered `nodes`
+   * array is returned exactly as stored, in its original recorded order.
+   * There is no graph traversal or reconstruction involved, so branches,
+   * loops, or stops shared with other buses (e.g. bus 215A) can never
+   * scramble the order.
+   *
+   * @param {string} busInput - bus number, case-insensitive / partial
+   * @returns {{bus:string, category:string|null, stopCount:number, nodes:string[]}}
+   */
+  getBusRoute(busInput) {
+    const bus = this.resolveBus(busInput);
+
+    const record = this.routesNodes.find(r => r.busNo === bus);
+    if (!record) {
+      throw new Error(`Bus "${bus}" has no route data in routes_nodes.json.`);
+    }
+
+    return {
+      bus: record.busNo,
+      category: record.category || null,
+      stopCount: record.nodes.length,
+      nodes: record.nodes.slice(),
+    };
+  }
+
+  /**
    * Turn a raw list of {stop, bus} states (bus = the bus used to ARRIVE at
    * that stop, null for the origin) into the full structured result.
    */
@@ -288,6 +377,7 @@ class RoutingEngine {
       }
       legs.push({
         bus,
+        category: this._categoryFor(legStops[0], bus),
         boardAt: legStops[0],
         alightAt: legStops[legStops.length - 1],
         stops: legStops, // ids, includes board + alight
@@ -308,6 +398,207 @@ class RoutingEngine {
       legs,
       stopSequence,
     };
+  }
+
+  /**
+   * Cost tuple (transfers, stops) for a path expressed as the
+   * [{stop,bus}, ...] array used internally (bus = bus used to ARRIVE
+   * at that stop; path[0].bus is always null).
+   */
+  _pathCost(path) {
+    let transfers = 0;
+    for (let i = 2; i < path.length; i++) {
+      if (path[i].bus !== path[i - 1].bus) transfers++;
+    }
+    return { transfers, stops: path.length - 1 };
+  }
+
+  static _pathKey(path) {
+    return path.map(p => `${p.stop}:${p.bus || ''}`).join('>');
+  }
+
+  /**
+   * Same core Dijkstra as findPath, but:
+   *   - can start already "riding" a bus (startBus, used by findKPaths to
+   *     resume a spur search from partway through a previously found path)
+   *   - can ban specific edges (Set of "fromStop|bus|toStop" strings)
+   *   - can ban visiting certain stops entirely (Set of stop ids), used to
+   *     keep spur paths loopless with respect to their root path
+   */
+  _dijkstraConstrained(startId, endId, startBus, bannedEdgeKeys, bannedNodes) {
+    const key = (stop, bus) => `${stop}|${bus === null ? '' : bus}`;
+    const best = new Map();
+    const cameFrom = new Map();
+
+    const compare = (a, b) => {
+      if (a.transfers !== b.transfers) return a.transfers - b.transfers;
+      if (a.stops !== b.stops) return a.stops - b.stops;
+      return 0;
+    };
+    const heap = new MinHeap(compare);
+
+    const startKey = key(startId, startBus);
+    best.set(startKey, [0, 0]);
+    heap.push({ stop: startId, bus: startBus, transfers: 0, stops: 0 });
+
+    let goalState = null;
+
+    while (heap.size > 0) {
+      const cur = heap.pop();
+      const curKey = key(cur.stop, cur.bus);
+      const recorded = best.get(curKey);
+      if (!recorded || recorded[0] !== cur.transfers || recorded[1] !== cur.stops) continue;
+
+      if (cur.stop === endId) { goalState = cur; break; }
+
+      const edges = this.adjacency[cur.stop] || [];
+      for (const e of edges) {
+        if (bannedNodes && bannedNodes.has(e.to) && e.to !== endId) continue;
+        if (bannedEdgeKeys && bannedEdgeKeys.has(`${cur.stop}|${e.bus}|${e.to}`)) continue;
+
+        const isFirstBoarding = cur.bus === null;
+        const isSameBus = !isFirstBoarding && e.bus === cur.bus;
+        const actualTransferDelta = isFirstBoarding ? 0 : (isSameBus ? 0 : 1);
+
+        const newTransfers = cur.transfers + actualTransferDelta;
+        const newStops = cur.stops + 1;
+        const newKey = key(e.to, e.bus);
+        const existing = best.get(newKey);
+
+        const better = !existing ||
+          newTransfers < existing[0] ||
+          (newTransfers === existing[0] && newStops < existing[1]);
+
+        if (better) {
+          best.set(newKey, [newTransfers, newStops]);
+          cameFrom.set(newKey, { prevKey: curKey, fromStop: cur.stop });
+          heap.push({ stop: e.to, bus: e.bus, transfers: newTransfers, stops: newStops });
+        }
+      }
+    }
+
+    if (!goalState) return null;
+
+    const orderedKeys = [];
+    let curKey = key(goalState.stop, goalState.bus);
+    orderedKeys.push(curKey);
+    while (curKey !== startKey) {
+      const step = cameFrom.get(curKey);
+      if (!step) break;
+      curKey = step.prevKey;
+      orderedKeys.push(curKey);
+    }
+    orderedKeys.reverse();
+
+    return orderedKeys.map(k => {
+      const idx = k.lastIndexOf('|');
+      const stop = k.slice(0, idx);
+      const busPart = k.slice(idx + 1);
+      return { stop, bus: busPart === '' ? null : busPart };
+    });
+  }
+
+  /**
+   * Yen's algorithm for up to K loopless alternative routes, ranked by the
+   * same (transfers, stops) lexicographic cost used for the single best
+   * route. Returns an array of raw path arrays ([{stop,bus}, ...]),
+   * cheapest first, deduplicated.
+   */
+  findKPaths(startId, endId, K = 4) {
+    const first = this._dijkstraConstrained(startId, endId, null, null, null);
+    if (!first) return [];
+
+    const A = [first];
+    const seen = new Set([RoutingEngine._pathKey(first)]);
+    let B = []; // candidates: {key, path, cost}
+
+    for (let k = 1; k < K; k++) {
+      const prevPath = A[k - 1];
+
+      for (let i = 0; i < prevPath.length - 1; i++) {
+        const spurNode = prevPath[i].stop;
+        const spurBus = i === 0 ? null : prevPath[i].bus;
+        const rootPrefixKey = prevPath.slice(0, i + 1).map(p => `${p.stop}:${p.bus || ''}`).join('>');
+
+        const bannedEdgeKeys = new Set();
+        for (const p of A) {
+          if (p.length <= i + 1) continue;
+          const pPrefixKey = p.slice(0, i + 1).map(x => `${x.stop}:${x.bus || ''}`).join('>');
+          if (pPrefixKey === rootPrefixKey) {
+            bannedEdgeKeys.add(`${p[i].stop}|${p[i + 1].bus}|${p[i + 1].stop}`);
+          }
+        }
+        const bannedNodes = new Set(prevPath.slice(0, i).map(p => p.stop));
+
+        const spurPath = this._dijkstraConstrained(spurNode, endId, spurBus, bannedEdgeKeys, bannedNodes);
+        if (!spurPath) continue;
+
+        const totalPath = prevPath.slice(0, i).concat(spurPath);
+        const pKey = RoutingEngine._pathKey(totalPath);
+        if (seen.has(pKey) || B.some(b => b.key === pKey)) continue;
+
+        B.push({ key: pKey, path: totalPath, cost: this._pathCost(totalPath) });
+      }
+
+      if (B.length === 0) break;
+
+      B.sort((a, b) => {
+        if (a.cost.transfers !== b.cost.transfers) return a.cost.transfers - b.cost.transfers;
+        return a.cost.stops - b.cost.stops;
+      });
+
+      const chosen = B.shift();
+      A.push(chosen.path);
+      seen.add(chosen.key);
+      B = B.filter(b => b.key !== chosen.key);
+    }
+
+    return A;
+  }
+
+  /**
+   * Human-readable version of findKPaths: accepts stop names/ids, returns
+   * up to K fully-resolved route objects (same shape as route()'s success
+   * case), cheapest/fewest-changes first.
+   */
+  routeMultiple(originInput, destinationInput, K = 4) {
+    const originId = this.resolveStop(originInput);
+    const destinationId = this.resolveStop(destinationInput);
+    const paths = this.findKPaths(originId, destinationId, K);
+
+    if (paths.length === 0) {
+      return {
+        found: false,
+        origin: this.stopName(originId),
+        destination: this.stopName(destinationId),
+        message: `No route found between "${this.stopName(originId)}" and "${this.stopName(destinationId)}" in the current graph.`,
+      };
+    }
+
+    const options = paths.map(path => {
+      const result = this._buildResult(path);
+      return {
+        found: true,
+        origin: this.stopName(originId),
+        destination: this.stopName(destinationId),
+        busChanges: result.transfers,
+        totalStopsTravelled: result.totalStops,
+        busesToBoard: result.busesToBoard,
+        interchangeStops: result.interchangeStops.map(id => this.stopName(id)),
+        legs: result.legs.map(l => ({
+          bus: l.bus,
+          category: l.category,
+          boardAt: this.stopName(l.boardAt),
+          alightAt: this.stopName(l.alightAt),
+          stopsTravelled: l.stopsTravelled,
+          stopByStop: l.stops.map(id => this.stopName(id)),
+        })),
+        fullJourney: result.stopSequence.map(id => this.stopName(id)),
+        raw: result,
+      };
+    });
+
+    return { found: true, options };
   }
 
   /**
@@ -339,6 +630,7 @@ class RoutingEngine {
       interchangeStops: result.interchangeStops.map(id => this.stopName(id)),
       legs: result.legs.map(l => ({
         bus: l.bus,
+        category: l.category,
         boardAt: this.stopName(l.boardAt),
         alightAt: this.stopName(l.alightAt),
         stopsTravelled: l.stopsTravelled,
@@ -395,7 +687,8 @@ function main() {
   }
 
   const graphPath = path.join(__dirname, 'graph.json');
-  const engine = new RoutingEngine(graphPath);
+  const routesNodesPath = path.join(__dirname, 'routes_nodes.json');
+  const engine = new RoutingEngine(graphPath, routesNodesPath);
 
   const [origin, destination] = args;
 

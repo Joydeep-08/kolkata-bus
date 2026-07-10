@@ -6,6 +6,8 @@
 <title>Kolkata Bus Route Finder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     --bg:#fbfaf6;
@@ -424,6 +426,18 @@
   }
   .bus-stop-name{ font-size:15px; font-weight:600; color:var(--text); }
   .bus-stop-node.first .bus-stop-name, .bus-stop-node.last .bus-stop-name{ color:var(--green-deep); }
+
+  .option{ cursor:pointer; }
+  .map-wrap{
+    margin:16px 0 4px; border:1px solid var(--line); border-radius:14px; overflow:hidden;
+    background:var(--surface);
+  }
+  #map{ height:340px; width:100%; background:var(--surface2); }
+  .leaflet-container{ background:var(--surface2); font-family:'IBM Plex Sans',sans-serif; }
+  .mapnote{
+    padding:10px 14px; font-size:12.5px; color:var(--muted); border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+  }
 </style>
 </head>
 <body>
@@ -459,6 +473,11 @@
   </div>
 
   <div class="results" id="results"></div>
+
+  <div class="map-wrap" id="mapWrap" style="display:none;">
+    <div id="map"></div>
+    <div class="mapnote" id="mapnote"></div>
+  </div>
 
   <div class="section-divider">Or look up a bus</div>
 
@@ -511,14 +530,18 @@ const MAX_OPTIONS = 4;  // how many alternative routes to show
 function norm(s){ return String(s).toLowerCase().replace(/[.()]/g,'').replace(/\s+/g,' ').trim(); }
 
 /* ---------------------- Load engine + data files ---------------------- */
+let coord = {}; // stop name -> [lat, lng], for the map
+
 async function initEngine(){
-  const [stopsRes, graphRes, routesNodesRes, routingSrc] = await Promise.all([
+  const [stopsRes, graphRes, routesNodesRes, routingSrc, coordRes] = await Promise.all([
     fetch('stops.json').then(r => r.json()),
     fetch('graph.json').then(r => r.text()),
     fetch('routes_nodes.json').then(r => r.text()),
     fetch('routing.js').then(r => r.text()),
+    fetch('stops_coords.json').then(r => r.json()).catch(() => ({})),
   ]);
 
+  coord = coordRes;
   STOP_NAMES = stopsRes.map(s => s.name);
 
   // Minimal CommonJS shim so routing.js runs unmodified in the browser.
@@ -729,6 +752,74 @@ function renderStopError(label, message, inputEl){
   }
 }
 
+/* --------------------------------- Map ----------------------------------- */
+const mapWrap = document.getElementById('mapWrap');
+let map = null, mapLayer = null;
+
+function ensureMap(){
+  if(map) return;
+  map = L.map('map', { zoomControl:true, attributionControl:false }).setView([22.555,88.37], 11.4);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+    { maxZoom:18, subdomains:'abcd' }).addTo(map);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+    { maxZoom:18, subdomains:'abcd' }).addTo(map);
+  mapLayer = L.layerGroup().addTo(map);
+}
+
+const LEG_COLORS = ['#1f8a55','#0f5c78','#8a4b12'];
+
+function drawJourney(option){
+  ensureMap();
+  mapWrap.style.display = 'block';
+  map.invalidateSize();
+  mapLayer.clearLayers();
+
+  const allPts = [];
+  let plotted = 0, missing = 0;
+
+  option.legs.forEach((leg, i) => {
+    const names = leg.stopByStop;
+    const pts = names.map(n => coord[n]).filter(Boolean);
+    names.forEach(n => coord[n] ? plotted++ : missing++);
+    if(pts.length >= 2){
+      L.polyline(pts, { color: LEG_COLORS[i % LEG_COLORS.length], weight:5, opacity:0.9 }).addTo(mapLayer);
+    }
+    pts.forEach(p => allPts.push(p));
+  });
+
+  // markers: origin (A), each interchange (~), destination (B)
+  const marks = [{ name: option.origin, tag: 'A' }];
+  option.interchangeStops.forEach(name => marks.push({ name, tag: '~' }));
+  marks.push({ name: option.destination, tag: 'B' });
+
+  marks.forEach(m => {
+    const c = coord[m.name];
+    if(!c) return;
+    const big = m.tag !== '~';
+    L.marker(c, { icon: L.divIcon({
+      className: '',
+      html: `<div style="background:${big?'#16211a':'#1f8a55'};color:#fff;
+        width:${big?26:18}px;height:${big?26:18}px;border-radius:50%;
+        display:flex;align-items:center;justify-content:center;
+        border:2.5px solid #fbfaf6;box-shadow:0 1px 4px rgba(0,0,0,.35);
+        font:700 ${big?12:10}px 'IBM Plex Mono',monospace">${m.tag}</div>`,
+      iconSize:[big?26:18, big?26:18], iconAnchor:[big?13:9, big?13:9]
+    })}).addTo(mapLayer).bindPopup(`<b>${m.name}</b>`);
+  });
+
+  const note = document.getElementById('mapnote');
+  if(allPts.length){
+    map.fitBounds(L.latLngBounds(allPts).pad(0.25), { maxZoom:14 });
+  }
+  if(plotted === 0){
+    note.textContent = `No geocoded stops on this route yet — add coords for these stops to stops_coords.json.`;
+  } else if(missing > 0){
+    note.textContent = `Plotted ${plotted} of ${plotted+missing} stops on this route — the rest aren't geocoded yet.`;
+  } else {
+    note.textContent = `Journey plotted · ${plotted} stops mapped.`;
+  }
+}
+
 /* ------------------------------ Rendering -------------------------------- */
 // Builds a stop-name-first vertical timeline:
 // Origin -> [bus chip + "ride to" next] -> interchange stop -> ... -> destination (arrived)
@@ -763,7 +854,7 @@ function renderOptionCard(option, index){
     </div>`;
 
   return `
-    <div class="option ${isBest ? 'best' : ''}">
+    <div class="option ${isBest ? 'best' : ''}" data-index="${index}">
       <div class="option-head">
         <span class="option-tag">${isBest ? '<span class="best-pill">BEST</span>' : ''} Option ${index + 1}</span>
         <span class="change-count ${changes===0?'zero':''}">${changes===0 ? 'Direct · no change' : changes+' bus change'+(changes>1?'s':'')}</span>
@@ -774,6 +865,7 @@ function renderOptionCard(option, index){
 
 function renderResults(res){
   resultsEl.innerHTML = '';
+  mapWrap.style.display = 'none';
 
   if(!res.found){
     resultsEl.insertAdjacentHTML('beforeend', `
@@ -794,6 +886,13 @@ function renderResults(res){
 
   const cardsHtml = options.map((opt, i) => renderOptionCard(opt, i)).join('');
   resultsEl.insertAdjacentHTML('beforeend', cardsHtml);
+
+  resultsEl.querySelectorAll('.option').forEach(el => {
+    el.addEventListener('click', () => drawJourney(options[+el.dataset.index]));
+  });
+
+  // auto-plot the best option
+  drawJourney(options[0]);
 }
 
 /* --------------------------------- Search --------------------------------- */
